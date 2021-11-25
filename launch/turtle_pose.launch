@@ -12,7 +12,6 @@
   <arg name="gui" default="true" />
   <arg name="rvizconfig" default="$(find pose_tracking)/rviz/rviz_rviz.rviz" />
 
-  <!-- <param name="robot_description" command="$(arg model)" /> -->
   <param name="robot_description" command="$(find xacro)/xacro $(arg model)" />
   
 
