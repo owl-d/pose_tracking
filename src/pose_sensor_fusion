@@ -24,8 +24,6 @@ const uint8_t DXL_DIR_PIN = 84;
 const uint8_t RIGHT_ID = 1;
 const uint8_t LEFT_ID = 2;
 const double DXL_PROTOCOL_VERSION = 2.0;
-//HardwareTimer Timer(TIMER_CH1);
-
 double L_Vel;
 double R_Vel;
 double L_RPM;
@@ -43,7 +41,6 @@ double dif_Rpos;
 double dis_L;
 double dis_R;
 double dis = 0;
-double rad = 0;
 double dxl_new_x;
 double dxl_new_y;
 double dxl_x = 0;
@@ -99,8 +96,8 @@ void twistMessageReceived(const geometry_msgs::Twist& msg)
   set_ang = msg.angular.z;
   set_Lvel = set_lin + 0.16 * set_ang;
   set_Rvel = set_lin - 0.16 * set_ang;
-  set_LRPM = set_Lvel * 60 / 2 / 3.141592 / 0.066;
-  set_RRPM = set_Rvel * 60 / 2 / 3.141592 / 0.066;
+  set_LRPM = set_Lvel * 60 / 2 / 3.141592 / 0.033;
+  set_RRPM = set_Rvel * 60 / 2 / 3.141592 / 0.033;
   
   dxl.setGoalVelocity(LEFT_ID, set_LRPM, UNIT_RPM);
   dxl.setGoalVelocity(RIGHT_ID, set_RRPM, UNIT_RPM);
@@ -247,10 +244,10 @@ void coordinate()
   present_Rpos = dxl.getPresentPosition(RIGHT_ID);
   L_RPM = dxl.getPresentVelocity(LEFT_ID,UNIT_RPM);
   R_RPM = dxl.getPresentVelocity(RIGHT_ID,UNIT_RPM);
-  L_Vel = 2 * 3.141592 * 0.066 * L_RPM / 60;
-  R_Vel = 2 * 3.141592 * 0.066 * R_RPM / 60;
-  lin_Vel = (L_Vel + R_Vel) /2; //linear_velocity
-  ang_Vel = (R_Vel - L_Vel) /0.16; //angular_velocity
+  L_Vel = 2 * 3.141592 * 0.033 * L_RPM / 60;
+  R_Vel = 2 * 3.141592 * 0.033 * R_RPM / 60;
+  lin_Vel = (L_Vel + R_Vel) / 2; //linear_velocity
+  ang_Vel = (R_Vel - L_Vel) / 0.16; //angular_velocity
   encoder_yaw += -ang_Vel*dt;
   encoder_yaw_q[0] = cos(0) * cos(0) * cos(encoder_yaw/2) + sin(0) * sin(0) * sin(encoder_yaw/2);
   encoder_yaw_q[1] = sin(0) * cos(0) * cos(encoder_yaw/2) - cos(0) * sin(0) * sin(encoder_yaw/2);
@@ -259,17 +256,13 @@ void coordinate()
   
   dif_Lpos = present_Lpos - new_Lpos;
   dif_Rpos = present_Rpos - new_Rpos;
-  dis_L = dif_Lpos * 0.00002 * 2.54;
-  dis_R = dif_Rpos * 0.00002 * 2.54;
+  dis_L = dif_Lpos * 0.0002;
+  dis_R = dif_Rpos * 0.0002;
   dis = (dis_L + dis_R) / 2;
-//  deg = ((dis_R - dis_L) / 160) * 57.2958 * 100;
-  rad = (dis_R - dis_L) / 0.16;
-  dxl_new_x = cos(rad) * dis; 
-  dxl_new_y = sin(rad) * dis;
+  dxl_new_x = cos(yaw) * dis;
+  dxl_new_y = sin(yaw) * dis;
   dxl_x += dxl_new_x; //position_x
   dxl_y += dxl_new_y; //position_y
-//  new_Lpos = dxl.getPresentPosition(LEFT_ID);
-//  new_Rpos = dxl.getPresentPosition(RIGHT_ID);
   new_Lpos = present_Lpos;
   new_Rpos = present_Rpos;
   
@@ -583,8 +576,8 @@ void coordinate()
   pose_msg.header.stamp = nh.now();
   pose_msg.header.frame_id = "map";
 
-  pose_msg.pose.position.x = posx[0];
-  pose_msg.pose.position.y = posy[0];
+  pose_msg.pose.position.x = dxl_x;
+  pose_msg.pose.position.y = dxl_y;
   pose_msg.pose.position.z = 0;
 
   pose_msg.pose.orientation.w = quat[0];
