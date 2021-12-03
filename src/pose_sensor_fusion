@@ -32,6 +32,7 @@ double lin_Vel;
 double ang_Vel;
 double encoder_yaw = 0;
 double encoder_yaw_q[4];
+double encoder_yaw_new = 0;
 double present_Lpos;
 double present_Rpos;
 double new_Lpos;
@@ -52,10 +53,11 @@ double set_Rvel;
 double set_LRPM;
 double set_RRPM;
 
-double wheel_wid = 0.16;
-double wheel_rad = 0.033;
-
-double thick_F = 0.0002; //(wheel_rad*2*PI*1000)/(G*R) = (66*3.14)/(258.5*4096) 
+double wheel_wid = 0.16; //turtlebot3_burger's width
+double wheel_rad = 0.033; //turtlebot3_burger's radius
+double G = 1; // turtlebot3 gear ratio (XL430-W250)
+double Re = 4096; // turtlebot3 encoder's resolution (XL430-W250)
+double thick_F = (wheel_rad*2*PI)/(G*Re);
 
 Dynamixel2Arduino dxl(DXL_SERIAL, DXL_DIR_PIN);
 using namespace ControlTableItem;
@@ -101,8 +103,8 @@ void twistMessageReceived(const geometry_msgs::Twist& msg)
   set_ang = msg.angular.z;
   set_Lvel = set_lin + wheel_wid * set_ang;
   set_Rvel = set_lin - wheel_wid * set_ang;
-  set_LRPM = set_Lvel * 60 / 2 / PI / wheel_rad;
-  set_RRPM = set_Rvel * 60 / 2 / PI / wheel_rad;
+  set_LRPM = set_Lvel * 60 / 2 / PI / wheel_rad; //RAW to RPM
+  set_RRPM = set_Rvel * 60 / 2 / PI / wheel_rad; //RAW to RPM
   
   dxl.setGoalVelocity(LEFT_ID, set_LRPM, UNIT_RPM);
   dxl.setGoalVelocity(RIGHT_ID, set_RRPM, UNIT_RPM);
@@ -249,21 +251,25 @@ void coordinate()
   present_Rpos = dxl.getPresentPosition(RIGHT_ID);
   L_RPM = dxl.getPresentVelocity(LEFT_ID,UNIT_RPM);
   R_RPM = dxl.getPresentVelocity(RIGHT_ID,UNIT_RPM);
-  L_Vel = 2 * PI * wheel_rad * L_RPM / 60;
-  R_Vel = 2 * PI * wheel_rad * R_RPM / 60;
+  L_Vel = 2 * PI * wheel_rad * L_RPM / 60; //RPM to RAW
+  R_Vel = 2 * PI * wheel_rad * R_RPM / 60; //RPM to RAW
   lin_Vel = (L_Vel + R_Vel) / 2; //linear_velocity
-  ang_Vel = (R_Vel - L_Vel) / 0.16; //angular_velocity
-  encoder_yaw += -ang_Vel*dt;
-  encoder_yaw_q[0] = cos(0) * cos(0) * cos(encoder_yaw/2) + sin(0) * sin(0) * sin(encoder_yaw/2);
-  encoder_yaw_q[1] = sin(0) * cos(0) * cos(encoder_yaw/2) - cos(0) * sin(0) * sin(encoder_yaw/2);
-  encoder_yaw_q[2] = cos(0) * sin(0) * cos(encoder_yaw/2) + sin(0) * cos(0) * sin(encoder_yaw/2);
-  encoder_yaw_q[3] = cos(0) * cos(0) * sin(encoder_yaw/2) - sin(0) * sin(0) * cos(encoder_yaw/2);
+  ang_Vel = (R_Vel - L_Vel) / wheel_wid; //angular_velocity
   
   dif_Lpos = present_Lpos - new_Lpos;
   dif_Rpos = present_Rpos - new_Rpos;
   dis_L = dif_Lpos * thick_F;
   dis_R = dif_Rpos * thick_F;
   dis = (dis_L + dis_R) / 2;
+  
+  encoder_yaw_new = (dis_L - dis_R) / wheel_wid;
+  encoder_yaw += encoder_yaw_new;
+  
+  encoder_yaw_q[0] = cos(0) * cos(0) * cos(encoder_yaw/2) + sin(0) * sin(0) * sin(encoder_yaw/2);
+  encoder_yaw_q[1] = sin(0) * cos(0) * cos(encoder_yaw/2) - cos(0) * sin(0) * sin(encoder_yaw/2);
+  encoder_yaw_q[2] = cos(0) * sin(0) * cos(encoder_yaw/2) + sin(0) * cos(0) * sin(encoder_yaw/2);
+  encoder_yaw_q[3] = cos(0) * cos(0) * sin(encoder_yaw/2) - sin(0) * sin(0) * cos(encoder_yaw/2);
+  
   dxl_new_x = cos(yaw) * dis;
   dxl_new_y = sin(yaw) * dis;
   dxl_x += dxl_new_x; //position_x
@@ -581,8 +587,8 @@ void coordinate()
   pose_msg.header.stamp = nh.now();
   pose_msg.header.frame_id = "map";
 
-  pose_msg.pose.position.x = dxl_x;
-  pose_msg.pose.position.y = dxl_y;
+  pose_msg.pose.position.x = posx[0];
+  pose_msg.pose.position.y = posy[0];
   pose_msg.pose.position.z = 0;
 
   pose_msg.pose.orientation.w = quat[0];
