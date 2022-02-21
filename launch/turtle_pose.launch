@@ -1,23 +1,25 @@
 <launch>
+  
+  <arg name="scenario" default="set_vel.py" />
 
   <node pkg="rosserial_python" type="serial_node.py" name="rosserial" output="screen">
     <param name="port" value="/dev/ttyACM0" />
     <param name="baud" value="115200" />
   </node>
 
-  <node pkg="turtlebot3_teleop" type="turtlebot3_teleop_key" name="turtlebot3_teleop_keyboard"  output="screen">
+  <node pkg="set_vel" type="$(arg scenario)" name="set_vel">
+  <!-- <node pkg="turtlebot3_teleop" type="turtlebot3_teleop_key" name="turtlebot3_teleop_keyboard"  output="screen"> -->
   </node>
-
+ 
   <arg name="model" default="$(find pose_tracking)/urdf/turtle.urdf"/>
   <arg name="gui" default="true" />
   <arg name="rvizconfig" default="$(find pose_tracking)/rviz/rviz_rviz.rviz" />
 
   <param name="robot_description" command="$(find xacro)/xacro $(arg model)" />
-  
 
   <!-- <node if="$(arg gui)" name="joint_state_publisher" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" /> -->
   <node unless="$(arg gui)" name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
   <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rvizconfig)" required="true" />
+  <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rvizconfig)" required="true" /> -->
 
 </launch>
