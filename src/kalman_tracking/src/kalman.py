@@ -1,9 +1,9 @@
 #! /usr/bin/env python
-#
+
 import rospy
 from sensor_msgs.msg import Imu, MagneticField, Temperature
 from std_msgs.msg import Float64
-from geometry_msgs.msg import Vector3, PoseStamped, Twist, TransformStamped
+from geometry_msgs.msg import Vector3, PoseStamped, Twist, TransformStamped, PoseWithCovarianceStamped
 from visualization_msgs.msg import Marker
 from tf.transformations import euler_from_quaternion, quaternion_from_euler, quaternion_multiply
 import numpy as np
@@ -19,22 +19,23 @@ class Algorithm(object):
     def __init__(self):
         self._pose_sub = rospy.Subscriber("/pose", PoseStamped, self.encoder_pose_callback) # pose from encoder
         self._cmd_vel_sub = rospy.Subscriber("/cmd_vel", Twist) # value scenario require
-        self._yaw_sub = rospy.Subscriber("/yaw", Float64, self.encoder_yaw_callback)       # yaw from encoder(degree)
+        self._yaw_sub = rospy.Subscriber("/yaw", Float64, self.encoder_yaw_callback) # yaw from encoder(degree)
         self._encoder_orientation_sub = rospy.Subscriber("/encoder_orientation", Imu, self.CallBack) # IMU value
-        
         self.pose_pub = rospy.Publisher("pose_kalman", PoseStamped, queue_size = 10)
+        self.pose_xp_pub = rospy.Publisher("pose_xp_kalman", PoseStamped, queue_size = 10)
         self.velocity_pub = rospy.Publisher("velocity", Twist, queue_size = 10)
 
         self.br = tf2_ros.TransformBroadcaster()
         self.tf = TransformStamped()
         self._pose = PoseStamped()
+        self._pose_xp = PoseStamped()
         self._velocity = Twist()
         self._gyro = Vector3()
         self._acc = Vector3()
         self._encoder_x = 0
         self._encoder_y = 0
         self._encoder_yaw = 0
-        self._encoder_orientation = [0, 0, 0, 0]
+        # self._encoder_orientation = [0, 0, 0, 0]
 
         self.body_v_x = 0
         self.body_v_y = 0 #velocity
@@ -42,33 +43,45 @@ class Algorithm(object):
         self.local_v_y = 0
         self.local_p_x = 0
         self.local_p_y = 0 #position
-        
         self._dt = 0.02
         self._H = np.zeros((3,4))
-        self._Q = 1e-5*np.eye(4)
+        self._Q = 1e-7*np.eye(4)
         self._R = 2*np.eye(3)
         self._V = np.eye(3)
-        self._P = 0.001*np.eye(4)
+        self._P = 0.125*np.eye(4)
         self._A = np.zeros((4,4))
-        self._K = np.zeros((4,4))
+        self._K = np.zeros((4,3))
         self._x = np.array([[1],[0],[0],[0]]) #quarternion, angular position : output
+        self._q1 = np.array([[1],[0],[0],[0]])
         self._xp = np.zeros((4,1))
         self._Pp = np.zeros((4,4))
         self._z1 = np.zeros((3,1))
-        self._z2 = np.zeros((3,1))
+        self._z2 = np.zeros((4,1))
         self._h = np.zeros((3,1))
 
     def encoder_pose_callback(self, msg):
         self._encoder_x = msg.pose.position.x
         self._encoder_y = msg.pose.position.y
-        # self._encoder_orientation[0] = msg.pose.orientation.x
-        # self._encoder_orientation[1] = msg.pose.orientation.y
-        # self._encoder_orientation[2] = msg.pose.orientation.z
-        # self._encoder_orientation[3] = msg.pose.orientation.w
+        # self._encoder_orientation[1] = msg.pose.orientation.x
+        # self._encoder_orientation[2] = msg.pose.orientation.y
+        # self._encoder_orientation[3] = msg.pose.orientation.z
+        # self._encoder_orientation[0] = msg.pose.orientation.w
 
     def encoder_yaw_callback(self, msg):
-        self._encoder_yaw = np.deg2rad(msg.data)
-        self._encoder_orientation[0], self._encoder_orientation[1], self._encoder_orientation[2], self._encoder_orientation[3] = quaternion_from_euler(0, 0, self._encoder_yaw)
+        self._encoder_yaw = -np.deg2rad(msg.data)
+        #self._encoder_orientation[0], self._encoder_orientation[1], self._encoder_orientation[2], self._encoder_orientation[3] = quaternion_from_euler(0, 0, self._encoder_yaw)
+
+    def normal_acc(self):
+        #normalize the accel value
+        self._acc.x = self._acc.x / math.sqrt(self._acc.x**2 +self._acc.y**2 + self._acc.z**2)
+        self._acc.y = self._acc.y / math.sqrt(self._acc.x**2 +self._acc.y**2 + self._acc.z**2)
+        self._acc.z = self._acc.z / math.sqrt(self._acc.x**2 +self._acc.y**2 + self._acc.z**2)
+
+        # if self._acc.z >= 0:
+        # self.q_acc = np.matrix([math.sqrt(0.5*(self._acc.z + 1)), -self._acc.y/(2*math.sqrt(0.5*(self._acc.z+1))), self._acc.x/(2*math.sqrt(0.5*(self._acc.z+1))), 0])
+        # else :
+        # self.q_acc_const = math.sqrt((1.0-self._acc.z) * 0.5)
+        # self.q_acc = np.matrix([-self._acc.y/(2.0*self.q_acc_const), self.q_acc_const, 0.0, self._acc.x/(2.0*self.q_acc_const)])
 
     def CallBack(self, msg):
         I = np.eye(4)
@@ -81,6 +94,8 @@ class Algorithm(object):
         self._acc.y = msg.linear_acceleration.y
         self._acc.z = msg.linear_acceleration.z
 
+        # self.normal_acc()
+
         #Priori System Estimate : gyro
         self.create_A()
         self._xp = self._A.dot(self._x)
@@ -91,7 +106,7 @@ class Algorithm(object):
         self.GetKalmanGain()
         qe1 = self._K.dot(self._z1 - self._h)
         qe1[3][0] = 0
-        q1 = self._xp + qe1
+        self._q1 = self._xp + qe1
         temp = I - self._K.dot(self._H)
         P1 = temp.dot(self._Pp)
 
@@ -101,7 +116,9 @@ class Algorithm(object):
         qe2 = self._K.dot(self._z2 - self._h)
         qe2[1][0] = 0
         qe2[2][0] = 0
-        self._x = q1 + qe2
+        self._x = self._q1 + qe2
+        # print("q1", self._q1[0][0], self._q1[1][0], self._q1[2][0], self._q1[3][0])
+        # print("qe2", qe2[0][0], qe2[1][0], qe2[2][0], qe2[3][0])
         temp = I - self._K.dot(self._H)
         self._P = temp.dot(P1)
 
@@ -113,13 +130,24 @@ class Algorithm(object):
         self._pose.pose.position.x = self._encoder_x #self.local_p_x
         self._pose.pose.position.y = self._encoder_y #self.local_p_y
         self._pose.pose.position.z = 0
-        self._pose.pose.orientation.w = self._x[0][0]
         self._pose.pose.orientation.x = self._x[1][0]
         self._pose.pose.orientation.y = self._x[2][0]
         self._pose.pose.orientation.z = self._x[3][0]
+        self._pose.pose.orientation.w = self._x[0][0]
         self._pose.header.stamp = rospy.Time.now()
         self._pose.header.frame_id = "map"
         self.pose_pub.publish(self._pose)
+
+        self._pose_xp.pose.position.x = self._encoder_x
+        self._pose_xp.pose.position.y = self._encoder_y
+        self._pose_xp.pose.position.z = 0
+        self._pose_xp.pose.orientation.x = self._xp[1][0]
+        self._pose_xp.pose.orientation.y = self._xp[2][0]
+        self._pose_xp.pose.orientation.z = self._xp[3][0]
+        self._pose_xp.pose.orientation.w = self._xp[0][0]
+        self._pose_xp.header.stamp = rospy.Time.now()
+        self._pose_xp.header.frame_id = "map"
+        self.pose_xp_pub.publish(self._pose_xp)
 
         self.tf.header.stamp = rospy.Time.now()
         self.tf.header.frame_id = "map"
@@ -153,7 +181,6 @@ class Algorithm(object):
         self.local_v_y += local_acc_y*self._dt
         self.local_p_x += self.local_v_x*self._dt/2
         self.local_p_y += self.local_v_y*self._dt/2 #position
-        
         # self.local_p_x += local_acc_x*self._dt*self._dt/2
         # self.local_p_y += local_acc_y*self._dt*self._dt/2
 
@@ -194,7 +221,7 @@ class Algorithm(object):
         self._h[0][0] = 2*self._xp[1][0]*self._xp[3][0] - 2*self._xp[0][0]*self._xp[2][0]
         self._h[1][0] = 2*self._xp[0][0]*self._xp[1][0] + 2*self._xp[2][0]*self._xp[3][0]
         self._h[2][0] = self._xp[0][0]**2 - self._xp[1][0]**2 - self._xp[2][0]**2 + self._xp[3][0]**2
-        #self._h = 9.81 * self._h
+        self._h = 9.81 * self._h
 
         #z1
         self._z1 = [[self._acc.x], [self._acc.y], [self._acc.z]]
@@ -223,9 +250,10 @@ class Algorithm(object):
         self._h[2][0] = 2*self._xp[2][0]*self._xp[3][0] - 2*self._xp[0][0]*self._xp[1][0]
 
         #z2
-        xp_quat = [self._xp[0][0], self._xp[1][0], self._xp[2][0], self._xp[3][0]]
-        xp_roll, xp_pitch, xp_yaw = euler_from_quaternion(xp_quat)
-        self._z2 = [[-xp_roll], [-xp_pitch], [self._encoder_yaw - xp_yaw]]
+        # xp_quat = [self._xp[1][0], self._xp[2][0], self._xp[3][0], self._xp[0][0]]
+        # xp_roll, xp_pitch, xp_yaw = euler_from_quaternion(xp_quat)
+        # self._z2 = [[xp_roll], [xp_pitch], [xp_yaw - self._encoder_yaw]]
+        self._z2 = [[0], [0], [self._encoder_yaw]]
 
         #R2
         self._R = np.eye(3)
