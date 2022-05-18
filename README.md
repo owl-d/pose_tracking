@@ -1,9 +1,5 @@
-# KalmanFilter_ROS
-Orientation Tracking of IMU Using Kalman FIlter
+#pose tracking
 
+pose tracking using IMU sensor and Encoder sensor with kalman filter
 
-[Terminal 1] roslaunch mavros px4.launch
-
-[Terminal 2] roslaunch px4_description display.launch
-
-https://www.youtube.com/watch?v=gl6dJYrhHN0
+OpenCR IMU 센서값과, 엔코더를 이용해 계산한 pose를 publish 하고 rospy 환경에서 받아 칼만 필터 구현
