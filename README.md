@@ -1,8 +1,28 @@
 # pose_tracking
 
-pose tracking using IMU sensor and Encoder sensor
+pose tracking using only IMU sensor
+
+with kalman filter algorithm
+
+test with teleop key input
 
 
-[Arduino IDE] Update 'pose_sensor_fusion.ino'
+```bash
+[Arduino IDE] update : "orientation_kalman_teleop.ino"
+```
 
-[Terminal 1] roslaunch pose_tracking turtle_pose.launch
+```bash
+$ roscore
+```
+
+```bash
+$ roslaunch turtlebot3_bringup turtlebot3_robot.launch
+```
+
+```bash
+$ roslaunch turtlebot3_teleop turtlebot3_teleop_key.launch
+```
+
+```bash
+$ rviz
+```
