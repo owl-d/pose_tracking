@@ -9,10 +9,8 @@ test with teleop key input
 
 ```bash
 [Arduino IDE] update
-
-1. 6DoF : orientation tracking with gyro, acc sensors
-
-2. 9DoF : orientation tracking with gyro, acc, mag sensors
+  1. 6DoF : orientation tracking with gyro, acc sensors
+  2. 9DoF : orientation tracking with gyro, acc, mag sensors
 ```
 
 ```bash
