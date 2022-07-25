@@ -21,6 +21,7 @@ $ roscore
 
 ```bash
 #수동 컨트롤 : teleop 입력
+$ roslaunch turtlebot3_bringup turtlebot3_robot.launch
 $ roslaunch turtlebot3_teleop turtlebot3_teleop_key.launch
 
 #자동 컨트롤 : 시나리오 돌리기
