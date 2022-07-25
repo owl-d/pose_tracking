@@ -15,11 +15,14 @@ cMPU9250 mpu;
 #define DXL_SERIAL Serial3
 #define DEBUG_SERIAL Serial
 
-///////////////////////////////////////
+////////////HYPER PARAM///////////////////////////
 const uint8_t PERIOD = 20;
 double dt = 0.02;
-///////////////////////////////////////
+double Q_PARAM = 1e-6;
+/////////////////////////////////////////////////
 
+
+//DXL Param
 const uint8_t DXL_DIR_PIN = 84;//OpenCR Board's DIR PIN.    
 const uint8_t RIGHT_ID = 1;
 const uint8_t LEFT_ID = 2;
@@ -37,6 +40,25 @@ double wheel_rad = 0.033; //turtlebot3_burger's radius
 double G = 1; // turtlebot3 gear ratio (XL430-W250)
 double Re = 4096; // turtlebot3 encoder's resolution (XL430-W250)
 double thick_F = (wheel_rad*2*PI)/(G*Re) *10000; //1thick's distance
+
+//Orientation Tracking Param
+double gyro[3];
+double acc[3];
+double mag[3];
+
+double Q[16] = {Q_PARAM, 0, 0, 0, 0, Q_PARAM, 0, 0, 0, 0, Q_PARAM, 0, 0, 0, 0, Q_PARAM};
+double P[16] = {0.001, 0, 0, 0, 0, 0.001, 0, 0, 0, 0, 0.001, 0, 0, 0, 0, 0.001};
+double R[9] = {2, 0, 0, 0, 2, 0, 0, 0, 2};
+double V[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+double A[16];
+double K[12];
+double H[12];
+double h[3];
+double z1[3];
+double z2[3];
+double x[4] = {1, 0, 0, 0};
+double xp[4];
+
 
 Dynamixel2Arduino dxl(DXL_SERIAL, DXL_DIR_PIN);
 using namespace ControlTableItem; //This namespace is required to use Control table item names
@@ -128,9 +150,6 @@ void setup()
   nh.advertise(imu_pub);
   tfbroadcaster.init(nh);
 
-  pinMode(13, OUTPUT);
-  digitalWrite(13, HIGH);
-
   mpu.begin();
 
   // Use UART port of DYNAMIXEL Shield to debug.
@@ -160,39 +179,6 @@ void setup()
 void loop()
 {
   static uint32_t pre_time;
-
-  double gyro[3];
-  double acc[3];
-  double mag[3];
-  double H[12];
-  double Q[16];
-  double R[9] = {2, 0, 0, 0, 2, 0, 0, 0, 2};
-  double V[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-  double P[16];
-  double A[16];
-  double K[12];
-  double x[4];
-  double xp[4];
-  double z1[3];
-  double z2[3];
-  double h[3];
-
-  if (digitalRead(13) == HIGH){
-    x[0] = 1; x[1] = 0; x[2] = 0; x[3] = 0;
-
-    P[0]=0.001; P[1]=0; P[2]=0; P[3]=0;
-    P[4]=0; P[5]=0.001; P[6]=0; P[7]=0;
-    P[8]=0; P[9]=0; P[10]=0.001; P[11]=0;
-    P[12]=0; P[13]=0; P[14]=0; P[15]=0.001;
-
-    Q[0]=1e-6; Q[1]=0; Q[2]=0; Q[3]=0;
-    Q[4]=0; Q[5]=1e-6; Q[6]=0; Q[7]=0;
-    Q[8]=0; Q[9]=0; Q[10]=1e-6; Q[11]=0;
-    Q[12]=0; Q[13]=0; Q[14]=0; Q[15]=1e-6;
-    
-    
-    digitalWrite(13, LOW);
-  }
 
   if (millis()-pre_time >= PERIOD)
   {
@@ -226,22 +212,22 @@ void loop()
     double Pp[16] = {Pp_A[0]+Q[0], Pp_A[1]+Q[1], Pp_A[2]+Q[2], Pp_A[3]+Q[3], Pp_A[4]+Q[4], Pp_A[5]+Q[5], Pp_A[6]+Q[6], Pp_A[7]+Q[7], Pp_A[8]+Q[8], Pp_A[9]+Q[9], Pp_A[10]+Q[10], Pp_A[11]+Q[11], Pp_A[12]+Q[12], Pp_A[13]+Q[13], Pp_A[14]+Q[14], Pp_A[15]+Q[15]};
 
     //Correction Stage1 : with acc
-    H[0] = -2*x[2];
-    H[1] = 2*x[3];
-    H[2] = -2*x[0];
-    H[3] = 2*x[1];
-    H[4] = 2*x[1];
-    H[5] = 2*x[0];
-    H[6] = 2*x[3];
-    H[7] = 2*x[2];
-    H[8] = 2*x[0];
-    H[9] = -2*x[1];
-    H[10] = -2*x[2];
-    H[11] = 2*x[3];
+    H[0] = -2*xp[2];
+    H[1] = 2*xp[3];
+    H[2] = -2*xp[0];
+    H[3] = 2*xp[1];
+    H[4] = 2*xp[1];
+    H[5] = 2*xp[0];
+    H[6] = 2*xp[3];
+    H[7] = 2*xp[2];
+    H[8] = 2*xp[0];
+    H[9] = -2*xp[1];
+    H[10] = -2*xp[2];
+    H[11] = 2*xp[3];
     
-    h[0] = 2*x[1]*x[3] - 2*x[0]*x[2];
-    h[1] = 2*x[0]*x[1] + 2*x[2]*x[3];
-    h[2] = x[0]*x[0] - x[1]*x[1] - x[2]*x[2] + x[3]*x[3];
+    h[0] = 2*xp[1]*xp[3] - 2*xp[0]*xp[2];
+    h[1] = 2*xp[0]*xp[1] + 2*xp[2]*xp[3];
+    h[2] = xp[0]*xp[0] - xp[1]*xp[1] - xp[2]*xp[2] + xp[3]*xp[3];
     h[0] = h[0]*9.8;
     h[1] = h[1]*9.8;
     h[2] = h[2]*9.8;
@@ -287,22 +273,22 @@ void loop()
 
     
     //Correction Stage2 : with mag
-    H[0] = 2*x[3];
-    H[1] = 2*x[2];
-    H[2] = 2*x[1];
-    H[3] = 2*x[0];
-    H[4] = 2*x[0];
-    H[5] = -2*x[1];
-    H[6] = -2*x[2];
-    H[7] = -2*x[3];
-    H[8] = -2*x[1];
-    H[9] = -2*x[0];
-    H[10] = 2*x[3];
-    H[11] = 2*x[2];
+    H[0] = 2*xp[3];
+    H[1] = 2*xp[2];
+    H[2] = 2*xp[1];
+    H[3] = 2*xp[0];
+    H[4] = 2*xp[0];
+    H[5] = -2*xp[1];
+    H[6] = -2*xp[2];
+    H[7] = -2*xp[3];
+    H[8] = -2*xp[1];
+    H[9] = -2*xp[0];
+    H[10] = 2*xp[3];
+    H[11] = 2*xp[2];
         
-    h[0] = 2*x[1]*x[2] + 2*x[0]*x[3];
-    h[1] = x[0]*x[0] - x[1]*x[1] - x[2]*x[2] - x[3]*x[3];
-    h[2] = 2*x[2]*x[3] - 2*x[0]*x[1];
+    h[0] = 2*xp[1]*xp[2] + 2*xp[0]*xp[3];
+    h[1] = xp[0]*xp[0] - xp[1]*xp[1] - xp[2]*xp[2] - xp[3]*xp[3];
+    h[2] = 2*xp[2]*xp[3] - 2*xp[0]*xp[1];
     
     z2[0] = mag[0];
     z2[1] = mag[1];
