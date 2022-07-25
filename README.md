@@ -20,7 +20,6 @@ $ roscore
 ```bash
 #수동 컨트롤 : teleop 입력
 $ roslaunch turtlebot3_teleop turtlebot3_teleop_key.launch
-$ roslaunch turtlebot3_teleop turtlebot3_teleop_key.launch
 
 #자동 컨트롤 : 시나리오 돌리기
 $ roslaunch pose_tracking turtle_pose.launch scenario:=set_vel2.py
