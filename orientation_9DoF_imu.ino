@@ -21,7 +21,6 @@ double dt = 0.02;
 double Q_PARAM = 1e-6;
 /////////////////////////////////////////////////
 
-
 //DXL Param
 const uint8_t DXL_DIR_PIN = 84;//OpenCR Board's DIR PIN.    
 const uint8_t RIGHT_ID = 1;
