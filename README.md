@@ -1,16 +1,18 @@
 # pose_tracking
 
-pose tracking using only IMU sensor
+Pose Tracking Algorithm
 
-with kalman filter algorithm
+- Orientation Tracking using IMU with Kalman Filter
+- Position Tracking using Encoder and Theta from IMU
 
 test with teleop key input
 
 
 ```bash
 [Arduino IDE] update
-  1. 6DoF : orientation tracking with gyro, acc sensors
-  2. 9DoF : orientation tracking with gyro, acc, mag sensors
+  1. 6DoF : Orientation Tracking with Gyro, Acc Sensors
+  2. 9DoF : Orientation Tracking with Gyro, Acc, Mag Sensors
+  3. Pose : Pose (Position + Orientation) Tracking with Encoder & IMU sensor fusion
 ```
 
 ```bash
