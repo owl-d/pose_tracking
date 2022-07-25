@@ -18,7 +18,14 @@ $ roscore
 ```
 
 ```bash
-$ roslaunch turtlebot3_bringup turtlebot3_robot.launch
+#수동 컨트롤 : teleop 입력
+$ roslaunch turtlebot3_teleop turtlebot3_teleop_key.launch
+
+#자동 컨트롤 : 시나리오 돌리기
+$ roslaunch pose_tracking turtle_pose.launch scenario:=set_vel2.py
+
+#USB 포트로 연결
+$ rosrun rosserial_python serial_node.py __name:=opencr _port:=/dev/ttyACM0 _baud:=115200
 ```
 
 ```bash
