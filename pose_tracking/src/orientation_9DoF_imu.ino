@@ -15,6 +15,7 @@ cMPU9250 mpu;
 #define DXL_SERIAL Serial3
 #define DEBUG_SERIAL Serial
 
+
 ////////////HYPER PARAM///////////////////////////
 const uint8_t PERIOD = 20;
 double dt = 0.02;
