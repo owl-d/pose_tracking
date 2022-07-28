@@ -24,7 +24,6 @@ double dt = 0.02;
 double Q_PARAM = 1e-6;
 /////////////////////////////////////////////////
 
-
 //Orientation Tracking Param
 double gyro[3];
 double acc[3];
